@@ -49,17 +49,15 @@ contract DecentralizedStableCoin is ERC20Burnable, Ownable {
     function burn(uint256 _amount) public override onlyOwner {
         uint256 balance = balanceOf(msg.sender);
         if (_amount <= 0) revert DecentralizedStableCoin__MustBeMoreThanZero();
-        if (balance < _amount)
+        if (balance < _amount) {
             revert DecentralizedStableCoin__BurnAmountExceedsBalance();
+        }
         super.burn(_amount);
         // super keyword means, use the burn function from parent class
         // here parent class is ERC20Burnable
     }
 
-    function mint(
-        address _to,
-        uint256 _amount
-    ) external onlyOwner returns (bool) {
+    function mint(address _to, uint256 _amount) external onlyOwner returns (bool) {
         if (_to == address(0)) revert DecentralizedStableCoin__NotZeroAddress();
         if (_amount <= 0) revert DecentralizedStableCoin__MustBeMoreThanZero();
         _mint(_to, _amount);
