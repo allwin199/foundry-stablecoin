@@ -78,6 +78,7 @@ contract DSCEngine is ReentrancyGuard {
     // Events
     //////////////
     event collateralDeposited(address indexed user, address indexed token, uint256 indexed amount);
+    event CollateralRedeemed(address indexed user, address indexed token, uint256 indexed amount);
 
     //////////////
     // Modifiers
@@ -114,8 +115,20 @@ contract DSCEngine is ReentrancyGuard {
     // External Functions
     //////////////////////
 
-    // people can deposit collateral which is wETH or wBTC and mint our DSC token
-    function depositCollateralAndMintDsc() external {}
+    /**
+     * @param _tokenCollateralAddress The address of the token to deposit as collateral
+     * @param _amountCollateral The amount of collateral to deposit
+     * @param _amountDscToMint The amount of decentralized stablecoin to mint
+     * @notice this function will deposit your collateral and mint DSC in one transaction
+     */
+    function depositCollateralAndMintDsc(
+        address _tokenCollateralAddress,
+        uint256 _amountCollateral,
+        uint256 _amountDscToMint
+    ) external {
+        depositCollateral(_tokenCollateralAddress, _amountCollateral);
+        mintDsc(_amountDscToMint);
+    }
 
     /**
      * @notice follows CEI(Checks, Effects, Interactions)
@@ -123,7 +136,7 @@ contract DSCEngine is ReentrancyGuard {
      * @param _amountCollateral The amount of collateral to deposit
      */
     function depositCollateral(address _tokenCollateralAddress, uint256 _amountCollateral)
-        external
+        public
         moreThanZero(_amountCollateral)
         isAllowedToken(_tokenCollateralAddress)
         nonReentrant
@@ -134,10 +147,39 @@ contract DSCEngine is ReentrancyGuard {
         if (!success) revert DSCEngine__TransferFailed();
     }
 
+    /**
+     *
+     * @param _tokenCollateralAddress The collateral address to redeem
+     * @param _amountCollateral The amount of collateral to redeem
+     * @param _amountDscToBurn The amount of DSC to burn
+     * This function burns DSC and redeems underlying collateral in one transaction
+     */
     // people can redeem collateral(wETH or wBTC) by using DSC token
-    function redeemCollateralForDsc() external {}
+    function redeemCollateralForDsc(
+        address _tokenCollateralAddress,
+        uint256 _amountCollateral,
+        uint256 _amountDscToBurn
+    ) external {
+        burnDsc(_amountDscToBurn);
+        redeemCollateral(_tokenCollateralAddress, _amountCollateral);
+        // redeemCollateral already check health factor
+    }
 
-    function redeemCollateral() external {}
+    // In order to redeem collateral:
+    // 1. Health factor must be over 1 AFTER collateral pulled out
+    // CEI: Checks, Effects, Interactions
+    function redeemCollateral(address _tokenCollateralAddress, uint256 _amountCollateral)
+        public
+        moreThanZero(_amountCollateral)
+        nonReentrant
+    {
+        s_collateralDeposited[msg.sender][_tokenCollateralAddress] -= _amountCollateral;
+        emit CollateralRedeemed(msg.sender, _tokenCollateralAddress, _amountCollateral);
+
+        (bool success) = IERC20(_tokenCollateralAddress).transfer(msg.sender, _amountCollateral);
+        if (!success) revert DSCEngine__TransferFailed();
+        _revertIfHealthFactorIsBroken(msg.sender);
+    }
 
     // After the user deposited the collateral, we can mint the DSC
     // Before minting we have to do some checks
@@ -147,7 +189,7 @@ contract DSCEngine is ReentrancyGuard {
      * @param _amountDscToMint The amount of Decentralized Stable Coin(DSC) to Mint
      * @notice they must have more collateral value than the minimum threshold
      */
-    function mintDsc(uint256 _amountDscToMint) external moreThanZero(_amountDscToMint) nonReentrant {
+    function mintDsc(uint256 _amountDscToMint) public moreThanZero(_amountDscToMint) nonReentrant {
         s_dscMinted[msg.sender] += _amountDscToMint;
         _revertIfHealthFactorIsBroken(msg.sender);
         bool minted = i_dsc.mint(msg.sender, _amountDscToMint);
@@ -155,7 +197,13 @@ contract DSCEngine is ReentrancyGuard {
     }
 
     // If people have more DSC compared to collateral, they can burn DSC
-    function burnDsc() external {}
+    function burnDsc(uint256 _amount) public moreThanZero(_amount) {
+        s_dscMinted[msg.sender] -= _amount;
+        bool success = i_dsc.transferFrom(msg.sender, address(this), _amount);
+        if (!success) revert DSCEngine__TransferFailed();
+        i_dsc.burn(_amount);
+        _revertIfHealthFactorIsBroken(msg.sender); // I don't think this would ever hit
+    }
 
     function liquidate() external {}
 
