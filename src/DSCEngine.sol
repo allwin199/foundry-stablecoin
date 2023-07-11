@@ -217,8 +217,12 @@ contract DSCEngine is ReentrancyGuard {
         // we know chainlink returns a decimal of 8
         // so it will be 1000e8
         // amount give by the user will be in terms of wei
-        // we knoe wei has 18 decimals
+        // we know wei has 18 decimals
         // we have to convert price to 18 decimals
+        // ADDITIONAL_FEED_PRECISION is 1e10
+        // uint256(price) * ADDITIONAL_FEED_PRECISION will give value of 1ETH in USD
+        // multiply with the total amount of ETH
+        // since price is e18 and _amount is e18, while multiplying we got e36, so we have to divide by e18
         return ((uint256(price) * ADDITIONAL_FEED_PRECISION) * _amount) / PRECISION;
     }
 }
