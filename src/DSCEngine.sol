@@ -295,10 +295,10 @@ contract DSCEngine is ReentrancyGuard {
     // Public & External View Functions
     /////////////////////////////////////
 
-    function getTokenAmountFromUsd(address _token, uint256 usdAmountInWei) public view returns (uint256) {
+    function getTokenAmountFromUsd(address _token, uint256 _usdAmountInWei) public view returns (uint256) {
         AggregatorV3Interface priceFeed = AggregatorV3Interface(s_priceFeeds[_token]);
         (, int256 price,,,) = priceFeed.latestRoundData();
-        return (usdAmountInWei * PRECISION) / (uint256(price) * ADDITIONAL_FEED_PRECISION);
+        return (_usdAmountInWei * PRECISION) / (uint256(price) * ADDITIONAL_FEED_PRECISION);
     }
 
     function getAccountCollateralValue(address _user) public view returns (uint256 totalCollateralInUsd) {
@@ -327,5 +327,13 @@ contract DSCEngine is ReentrancyGuard {
         // multiply with the total amount of ETH
         // since price is e18 and _amount is e18, while multiplying we got e36, so we have to divide by e18
         return ((uint256(price) * ADDITIONAL_FEED_PRECISION) * _amount) / PRECISION;
+    }
+
+    function getAccountInformation(address _user)
+        external
+        view
+        returns (uint256 totalDscMinted, uint256 collateralValueInUsd)
+    {
+        (totalDscMinted, collateralValueInUsd) = _getAccountInformation(_user);
     }
 }
